@@ -13,12 +13,15 @@ class NodeTransformer(ast.NodeTransformer):
         new_node = self.generic_visit(node)
         new_node.body.insert(0, ast.FunctionDef(name='havoc',
                                                 args=ast.arguments(
-                                                    args=[ast.Name(id='scale', ctx=ast.Param())],
+                                                    posonlyargs=[],
+                                                    args=[ast.arg(arg='scale', annotation=None)],
                                                     vararg=None,
+                                                    kwonlyargs=[],
+                                                    kw_defaults=[],
                                                     kwarg=None,
                                                     defaults=[]),
                                                 decorator_list=[],
-                                                body=[ast.Expr(value=ast.Str('Implement the havoc instruction here')),
+                                                body=[ast.Expr(value=ast.Constant(value='Implement the havoc instruction here')),
                                                       ast.Pass()]
                                                 ))
         return new_node
@@ -28,7 +31,8 @@ class NodeTransformer(ast.NodeTransformer):
         # TODO: determine whether it's the function to transform or not
         # remove the annotation string
         new_node.body = new_node.body[1:]
-        new_node.body.insert(0, ast.Assign(targets=[ast.Name(id='__V_epsilon', ctx=ast.Store())], value=ast.Num(0)))
+        new_node.body.insert(0, ast.Assign(targets=[ast.Name(id='__V_epsilon', ctx=ast.Store())],
+                                           value=ast.Constant(value=0)))
 
         return new_node
 
@@ -38,7 +42,8 @@ class NodeTransformer(ast.NodeTransformer):
                 and node.value.func.id in _noise_functions:
             node.value.func.id = 'havoc'
             change_v_epsilon = ast.AugAssign(target=ast.Name(id='__V_epsilon', ctx=ast.Store()), op=ast.Add(),
-                                             value=ast.BinOp(left=ast.Num(1.0), op=ast.Div(), right=node.value.args[0]))
+                                             value=ast.BinOp(left=ast.Constant(value=1.0), op=ast.Div(),
+                                                             right=node.value.args[0]))
             return change_v_epsilon, node
         else:
             return node

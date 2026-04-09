@@ -18,7 +18,9 @@ _binop_map = {
     ast.Add: lambda x, y: x + y,
     ast.Sub: lambda x, y: x - y,
     ast.Mult: lambda x, y: x * y,
-    ast.Div: lambda x, y: x / y
+    ast.Div: lambda x, y: x / y,
+    ast.Mod: lambda x, y: x % y if not isinstance(x, z3.ExprRef) and not isinstance(y, z3.ExprRef)
+    else x - z3.ToReal(z3.ToInt(x / y)) * y
 }
 
 _boolop_map = {
@@ -167,7 +169,18 @@ class NodeVerifier(ast.NodeVisitor):
         return self._symbol(node.id), self._symbol('^' + node.id)
 
     def visit_Num(self, node):
-        return node.n, 0
+        return node.value, 0
+
+    def visit_Constant(self, node):
+        # Python 3.8+ uses ast.Constant for all literals (numbers, booleans, strings, None).
+        # bool must be checked before int since bool is a subclass of int.
+        if isinstance(node.value, bool):
+            return node.value, NumType(0)
+        if isinstance(node.value, (int, float)):
+            return node.value, 0
+        # Strings (e.g. docstrings) and None are traversed but produce no value;
+        # match the implicit generic_visit behavior of the original code.
+        return None
 
     def visit_BinOp(self, node):
         assert isinstance(node.op, tuple(_binop_map.keys())), 'Unsupported BinOp %s' % ast.dump(node.op)
@@ -175,9 +188,12 @@ class NodeVerifier(ast.NodeVisitor):
                 _binop_map[node.op.__class__](self.visit(node.left)[1], self.visit(node.right)[1]))
 
     def visit_Subscript(self, node):
-        assert isinstance(node.slice, ast.Index), 'Only index is supported.'
-        return (self.visit(node.value)[0][self.visit(node.slice.value)[0]],
-                self.visit(node.value)[1][self.visit(node.slice.value)[0]])
+        # Python 3.9+ removed ast.Index; node.slice is the expression directly.
+        slice_node = node.slice
+        if hasattr(ast, 'Index') and isinstance(slice_node, getattr(ast, 'Index')):
+            slice_node = slice_node.value
+        return (self.visit(node.value)[0][self.visit(slice_node)[0]],
+                self.visit(node.value)[1][self.visit(slice_node)[0]])
 
     def visit_BoolOp(self, node):
         assert isinstance(node.op, tuple(_boolop_map.keys())), 'Unsupported BoolOp %s' % ast.dump(node.op)
@@ -214,7 +230,7 @@ class NodeVerifier(ast.NodeVisitor):
             assert isinstance(self._type_map[node.func.value.id], ListType), \
                 '%s is not typed as list.' % node.func.value.id
             if isinstance(self._type_map[node.func.value.id].elem_type, NumType):
-                self._declarations.append(self.visit(node.func.value.id)[1][self._symbol('i')] ==
+                self._declarations.append(self.visit(node.func.value)[1][self._symbol('i')] ==
                                           self.visit(node.args[0])[1])
 
         else:

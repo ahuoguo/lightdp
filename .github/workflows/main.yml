@@ -7,24 +7,23 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
-        python-version: [3.5, 3.6, 3.7]
+        python-version: ['3.10', '3.11', '3.12']
     runs-on: ${{ matrix.os }}
-    env:
-      PYTHON_VERSION: ${{ matrix.python-version }}
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@master
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install tox
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tox
-      - name: Test with tox
-        shell: bash
+          pip install .[test]
+      - name: Run tests
         run: |
-          # remove the "." in the python version
-          tox -e "py${PYTHON_VERSION//.}"
+          pytest tests/ --durations=0 -v --cov=lightdp --cov-report xml --cov-report term
+      - name: Run lightdp sparse vector example
+        run: |
+          lightdp ./examples/sparse_vector.py
       - name: Upload to codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v4
