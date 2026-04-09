@@ -25,5 +25,7 @@ jobs:
       - name: Run lightdp sparse vector example
         run: |
           lightdp ./examples/sparse_vector.py
-      - name: Upload to codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
